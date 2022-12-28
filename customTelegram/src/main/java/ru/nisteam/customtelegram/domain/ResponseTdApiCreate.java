@@ -7,4 +7,9 @@ import org.drinkless.tdlib.TdApi;
 public class ResponseTdApiCreate {
     TdApi.Chat chat;
     TdApi.Error error;
+
+    public void clear(){
+        chat = null;
+        error = null;
+    }
 }

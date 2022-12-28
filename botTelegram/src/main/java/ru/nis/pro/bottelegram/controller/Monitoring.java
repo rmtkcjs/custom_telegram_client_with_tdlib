@@ -43,6 +43,7 @@ public class Monitoring {
             log.warn("[createNewChat] stop exchange " );
         } catch (RestClientException e) {
             //log.error("[MONITORING, BAD REQUEST] exchange.getStatusCode(): " + exchange.getStatusCode());
+
             log.error("[MONITORING,BAD REQUEST] e: " + e);
             ResponseMonitoring responseMonitoring = new ResponseMonitoring();
             responseMonitoring.setError("MONITORING,BAD REQUEST FROM NEW CHAT CREATED");
@@ -52,11 +53,29 @@ public class Monitoring {
         if (exchange.getStatusCode() == HttpStatus.OK) {
             log.warn("[createNewChat] get response, exchange.getBody().getGroupId() < 0 "  + (exchange.getBody().getGroupId() < 0));
             if (exchange.getBody().getGroupId() != 0){
+                log.info("Telegram ID {}", String.valueOf(exchange.getBody().getGroupId()));
+
+
+                String responsible = "Серябряков Андрей Анатольевич";
+                String id = "132223";
+                String type = "Host";
+                String problem = "Снизилось напряжение на остовном контуре";
+                String ke = "name: nl-sp-idmweb01";
+                String date = "28.12.2022 11:55:49 +03:00";
+                String text = String.format("Готов к работе, ссылка на текущую группу: %s" +
+                        "\n Время создания: %s" +
+                                "\n id обьекта: %s" +
+                                "\n Тип обьекта: %s" +
+                                "\n Ответственный менеджер: %s" +
+                                "\n Описание проблемы: %s" +
+                                "\n Затронутое КЕ: %s"
+                        , exchange.getBody().getLink(), date, id, type, responsible, problem, ke);
+
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(5000);
                     bot.execute(SendMessage.builder()
                             .chatId(String.valueOf(exchange.getBody().getGroupId()))
-                            .text("Готов к работе, ссылка на группу: " + exchange.getBody().getLink())
+                            .text(text)
                             .protectContent(true)
                             .build());
                     return new ResponseEntity<>(exchange.getBody(), HttpStatus.OK);
@@ -75,7 +94,7 @@ public class Monitoring {
 
     @GetMapping("/test")
     public ResponseEntity<String> getTest(){
-        ResponseEntity<String> exchange = restTemplate.exchange("https://httpbin.org/get", HttpMethod.GET, null, String.class);
+        ResponseEntity<String> exchange = restTemplate.exchange("https://httpbin.org/ip", HttpMethod.GET, null, String.class);
         return new ResponseEntity<>(exchange.getBody(), HttpStatus.OK);
     }
 }

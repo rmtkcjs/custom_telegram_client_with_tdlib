@@ -264,17 +264,18 @@ public class TelegramRunner {
             client.send(new TdApi.GetUser(item), new GetUser());
         }
         while (userId.size() != numbers.length) {
-            Thread.sleep(100);
+            Thread.sleep(1000);
         }
         log.warn("[httpSendMeToCommandLiner] stop download user" );
 
+        Thread.sleep(10000);
         // create new group
         TdApi.CreateNewBasicGroupChat newGroup =
                 new TdApi.CreateNewBasicGroupChat(numbers, response.getName());
         log.warn("[httpSendMeToCommandLiner] start create chat" );
         client.send(newGroup, new CreateChat());
         while (responseTdApiCreate.getChat() == null  &&  responseTdApiCreate.getError() == null) {
-            Thread.sleep(100);
+            Thread.sleep(1000);
         }
         log.warn("[httpSendMeToCommandLiner] stop create chat" );
         if (responseTdApiCreate.getChat() != null){
@@ -287,18 +288,18 @@ public class TelegramRunner {
             log.warn("[httpSendMeToCommandLiner] stop admin bot" );
 
             // create link
-            TdApi.CreateChatInviteLink inviteLink = new TdApi.CreateChatInviteLink(responseTdApiCreate.getChat().id, "test", 0, 0, true);
+            TdApi.CreateChatInviteLink inviteLink = new TdApi.CreateChatInviteLink(responseTdApiCreate.getChat().id, UUID.randomUUID().toString(), 0, 0, true);
             log.warn("[httpSendMeToCommandLiner] start create link " );
             client.send(inviteLink, new InviteUrl());
             while (responseTdApiInviteUrl.getLink() == null  &&  responseTdApiInviteUrl.getError() == null) {
-                Thread.sleep(100);
+                Thread.sleep(1000);
             }
             log.warn("[httpSendMeToCommandLiner] stop create link " );
             if (responseTdApiInviteUrl.getLink() != null){
 
                 //send
 //             sendMessage(responseTdApiCreate.getChat().id, responseTdApiInviteUrl.getLink().inviteLink);
-               sendMessage(-817247015, responseTdApiInviteUrl.getLink().inviteLink);
+               sendMessage(-886194464, responseTdApiInviteUrl.getLink().inviteLink);
 
                 responseChat.setLink(responseTdApiInviteUrl.getLink().inviteLink);
                 responseChat.setGroupId(responseTdApiCreate.getChat().id);
@@ -313,8 +314,14 @@ public class TelegramRunner {
         }else{
             String error = "responseTdApiCreate: " + responseTdApiCreate.getError().message;
             responseChat.setError(error);
+
             return responseChat;
         }
+    }
+
+    public void clearObj(){
+        responseTdApiCreate.clear();
+        responseTdApiInviteUrl.clear();
     }
 
     private static void getMainChatList(final int limit) {

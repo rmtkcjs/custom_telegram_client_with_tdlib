@@ -25,6 +25,7 @@ public class NewChat {
     public ResponseEntity<ResponseChat> createNewChat(@RequestBody RequestNewChat requestNewChat) {
         log.warn("[createNewChat] start method " );
         ResponseChat responseChat = telegramRunner.httpSendMeToCommandLiner(requestNewChat);
+        telegramRunner.clearObj();
         log.warn("[createNewChat] get responseChat " );
         if( responseChat.getError() != null && responseChat.getGroupId() == 0 ){
             log.error("[NOT CREATE CHAT] responseChat: " + responseChat);
