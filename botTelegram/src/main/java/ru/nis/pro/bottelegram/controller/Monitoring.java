@@ -55,27 +55,24 @@ public class Monitoring {
             if (exchange.getBody().getGroupId() != 0){
                 log.info("Telegram ID {}", String.valueOf(exchange.getBody().getGroupId()));
 
-
-                String responsible = "Серябряков Андрей Анатольевич";
-                String id = "132223";
-                String type = "Host";
-                String problem = "Снизилось напряжение на остовном контуре";
-                String ke = "name: nl-sp-idmweb01";
-                String date = "28.12.2022 11:55:49 +03:00";
-                String text = String.format("Готов к работе, ссылка на текущую группу: %s" +
-                        "\n Время создания: %s" +
-                                "\n id обьекта: %s" +
-                                "\n Тип обьекта: %s" +
-                                "\n Ответственный менеджер: %s" +
-                                "\n Описание проблемы: %s" +
-                                "\n Затронутое КЕ: %s"
-                        , exchange.getBody().getLink(), date, id, type, responsible, problem, ke);
+                StringBuilder sb = new StringBuilder();
+                sb.append("Затронутые КЕ:\n");
+                sb.append("Имя: ").append(requestMonitoring.getName()).append("\n");
+                sb.append("Ссылка: ").append(requestMonitoring.getLink()).append("\n");
+                sb.append("\nДетали:\n");
+                sb.append("Сигнал: ").append(requestMonitoring.getSignal()).append("\n");
+                sb.append("Статус: ").append(requestMonitoring.getStatus()).append("\n");
+                sb.append("Критичность: ").append(requestMonitoring.getCritical()).append("\n");
+                sb.append("Время создания: ").append(requestMonitoring.getTimeCreate()).append("\n");
+                sb.append("Время завершения: ").append(requestMonitoring.getTimeEnd()).append("\n");
+                sb.append("Длительность: ").append(requestMonitoring.getDuration()).append("\n");
+                sb.append("Ссылка: ").append(requestMonitoring.getProblemLink()).append("\n");
 
                 try {
                     Thread.sleep(5000);
                     bot.execute(SendMessage.builder()
                             .chatId(String.valueOf(exchange.getBody().getGroupId()))
-                            .text(text)
+                            .text(sb.toString())
                             .protectContent(true)
                             .build());
                     return new ResponseEntity<>(exchange.getBody(), HttpStatus.OK);
