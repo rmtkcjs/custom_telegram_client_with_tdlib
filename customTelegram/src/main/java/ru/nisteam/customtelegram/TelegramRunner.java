@@ -23,42 +23,43 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Log4j2
 @Component
 public class TelegramRunner {
 
+    private static final Client.ResultHandler defaultHandler = new TelegramRunner.DefaultHandler();
+    private static final Lock authorizationLock = new ReentrantLock();
+    private static final Condition gotAuthorization = authorizationLock.newCondition();
+    private static final ConcurrentMap<Long, TdApi.User> users = new ConcurrentHashMap<Long, TdApi.User>();
+    private static final ConcurrentMap<Long, TdApi.BasicGroup> basicGroups =
+            new ConcurrentHashMap<Long, TdApi.BasicGroup>();
+    private static final ConcurrentMap<Long, TdApi.Supergroup> supergroups =
+            new ConcurrentHashMap<Long, TdApi.Supergroup>();
+    private static final ConcurrentMap<Integer, TdApi.SecretChat> secretChats =
+            new ConcurrentHashMap<Integer, TdApi.SecretChat>();
+    private static final ConcurrentMap<Long, TdApi.Chat> chats = new ConcurrentHashMap<Long, TdApi.Chat>();
+    private static final NavigableSet<OrderedChat> mainChatList = new TreeSet<OrderedChat>();
+    private static final ConcurrentMap<Long, TdApi.UserFullInfo> usersFullInfo =
+            new ConcurrentHashMap<Long, TdApi.UserFullInfo>();
+    private static final ConcurrentMap<Long, TdApi.BasicGroupFullInfo> basicGroupsFullInfo =
+            new ConcurrentHashMap<Long, TdApi.BasicGroupFullInfo>();
+    private static final ConcurrentMap<Long, TdApi.SupergroupFullInfo> supergroupsFullInfo =
+            new ConcurrentHashMap<Long, TdApi.SupergroupFullInfo>();
+    private static final String newLine = System.getProperty("line.separator");
+    private static final String commandsLine =
+            "Enter command (gcs - GetChats, gc <chatId> - GetChat, me - GetMe, sm <chatId> <message> - SendMessage, lo - LogOut, q - Quit): ";
+    private static final ResponseTdApiCreate responseTdApiCreate = new ResponseTdApiCreate();
+    private static final ResponseTdApiInviteUrl responseTdApiInviteUrl = new ResponseTdApiInviteUrl();
     private static Client client = null;
-
     private static TdApi.AuthorizationState authorizationState = null;
     private static volatile boolean haveAuthorization = false;
     private static volatile boolean needQuit = false;
     private static volatile boolean canQuit = false;
-
-    private static final Client.ResultHandler defaultHandler = new TelegramRunner.DefaultHandler();
-
-    private static final Lock authorizationLock = new ReentrantLock();
-    private static final Condition gotAuthorization = authorizationLock.newCondition();
-
-    private static final ConcurrentMap<Long, TdApi.User> users = new ConcurrentHashMap<Long, TdApi.User>();
-    private static final ConcurrentMap<Long, TdApi.BasicGroup> basicGroups = new ConcurrentHashMap<Long, TdApi.BasicGroup>();
-    private static final ConcurrentMap<Long, TdApi.Supergroup> supergroups = new ConcurrentHashMap<Long, TdApi.Supergroup>();
-    private static final ConcurrentMap<Integer, TdApi.SecretChat> secretChats = new ConcurrentHashMap<Integer, TdApi.SecretChat>();
-
-    private static final ConcurrentMap<Long, TdApi.Chat> chats = new ConcurrentHashMap<Long, TdApi.Chat>();
-    private static final NavigableSet<OrderedChat> mainChatList = new TreeSet<OrderedChat>();
     private static boolean haveFullMainChatList = false;
-
-    private static final ConcurrentMap<Long, TdApi.UserFullInfo> usersFullInfo = new ConcurrentHashMap<Long, TdApi.UserFullInfo>();
-    private static final ConcurrentMap<Long, TdApi.BasicGroupFullInfo> basicGroupsFullInfo = new ConcurrentHashMap<Long, TdApi.BasicGroupFullInfo>();
-    private static final ConcurrentMap<Long, TdApi.SupergroupFullInfo> supergroupsFullInfo = new ConcurrentHashMap<Long, TdApi.SupergroupFullInfo>();
-
-    private static final String newLine = System.getProperty("line.separator");
-    private static final String commandsLine = "Enter command (gcs - GetChats, gc <chatId> - GetChat, me - GetMe, sm <chatId> <message> - SendMessage, lo - LogOut, q - Quit): ";
     private static volatile String currentPrompt = null;
-
-    private static final ResponseTdApiCreate responseTdApiCreate = new ResponseTdApiCreate();
-    private static final ResponseTdApiInviteUrl responseTdApiInviteUrl = new ResponseTdApiInviteUrl();
     private static HashSet<Long> userId = null;
 
     private static void print(String str) {
@@ -120,7 +121,8 @@ public class TelegramRunner {
                 break;
             }
             case TdApi.AuthorizationStateWaitOtherDeviceConfirmation.CONSTRUCTOR: {
-                String link = ((TdApi.AuthorizationStateWaitOtherDeviceConfirmation) TelegramRunner.authorizationState).link;
+                String link =
+                        ((TdApi.AuthorizationStateWaitOtherDeviceConfirmation) TelegramRunner.authorizationState).link;
                 System.out.println("Please confirm this login link on another device: " + link);
                 break;
             }
@@ -170,7 +172,8 @@ public class TelegramRunner {
             case TdApi.AuthorizationStateClosed.CONSTRUCTOR:
                 print("Closed");
                 if (!needQuit) {
-                    client = Client.create(new TelegramRunner.UpdateHandler(), null, null); // recreate client after previous has closed
+                    client =
+                            Client.create(new TelegramRunner.UpdateHandler(), null, null); // recreate client after previous has closed
                 } else {
                     canQuit = true;
                 }
@@ -253,82 +256,12 @@ public class TelegramRunner {
         }
     }
 
-    @SneakyThrows
-    public ResponseChat httpSendMeToCommandLiner(RequestNewChat response){
-        ResponseChat responseChat = new ResponseChat();
-        //load users
-        userId = new HashSet<>();
-        long[] numbers = response.getNumbers();
-        log.warn("[httpSendMeToCommandLiner] start download user" );
-        for (long item: numbers){
-            client.send(new TdApi.GetUser(item), new GetUser());
-        }
-        while (userId.size() != numbers.length) {
-            Thread.sleep(1000);
-        }
-        log.warn("[httpSendMeToCommandLiner] stop download user" );
-
-        Thread.sleep(10000);
-        // create new group
-        TdApi.CreateNewBasicGroupChat newGroup =
-                new TdApi.CreateNewBasicGroupChat(numbers, response.getName());
-        log.warn("[httpSendMeToCommandLiner] start create chat" );
-        client.send(newGroup, new CreateChat());
-        while (responseTdApiCreate.getChat() == null  &&  responseTdApiCreate.getError() == null) {
-            Thread.sleep(1000);
-        }
-        log.warn("[httpSendMeToCommandLiner] stop create chat" );
-        if (responseTdApiCreate.getChat() != null){
-
-            //update status bot
-            TdApi.SetChatMemberStatus admin =
-                    new TdApi.SetChatMemberStatus(responseTdApiCreate.getChat().id, new TdApi.MessageSenderUser(response.getNumbers()[0]), new TdApi.ChatMemberStatusAdministrator("botAdministrator", true, new TdApi.ChatAdministratorRights(true, true, true, true, true, true, true, true, true, true, true, true)));
-            log.warn("[httpSendMeToCommandLiner] start admin bot" );
-            client.send(admin, defaultHandler);
-            log.warn("[httpSendMeToCommandLiner] stop admin bot" );
-
-            // create link
-            TdApi.CreateChatInviteLink inviteLink = new TdApi.CreateChatInviteLink(responseTdApiCreate.getChat().id, UUID.randomUUID().toString(), 0, 0, true);
-            log.warn("[httpSendMeToCommandLiner] start create link " );
-            client.send(inviteLink, new InviteUrl());
-            while (responseTdApiInviteUrl.getLink() == null  &&  responseTdApiInviteUrl.getError() == null) {
-                Thread.sleep(1000);
-            }
-            log.warn("[httpSendMeToCommandLiner] stop create link " );
-            if (responseTdApiInviteUrl.getLink() != null){
-
-                //send
-//             sendMessage(responseTdApiCreate.getChat().id, responseTdApiInviteUrl.getLink().inviteLink);
-               sendMessage(-886194464, responseTdApiInviteUrl.getLink().inviteLink);
-
-                responseChat.setLink(responseTdApiInviteUrl.getLink().inviteLink);
-                responseChat.setGroupId(responseTdApiCreate.getChat().id);
-                return responseChat;
-
-            }else{
-                String error = "responseTdApiInviteUrl: " + responseTdApiInviteUrl.getError().message;
-                responseChat.setGroupId(responseTdApiCreate.getChat().id);
-                responseChat.setError(error);
-                return responseChat;
-            }
-        }else{
-            String error = "responseTdApiCreate: " + responseTdApiCreate.getError().message;
-            responseChat.setError(error);
-
-            return responseChat;
-        }
-    }
-
-    public void clearObj(){
-        responseTdApiCreate.clear();
-        responseTdApiInviteUrl.clear();
-    }
-
     private static void getMainChatList(final int limit) {
         synchronized (mainChatList) {
             if (!haveFullMainChatList && limit > mainChatList.size()) {
                 // send LoadChats request if there are some unknown chats and have not enough known chats
-                client.send(new TdApi.LoadChats(new TdApi.ChatListMain(), limit - mainChatList.size()), new Client.ResultHandler() {
+                client.send(new TdApi.LoadChats(new TdApi.ChatListMain(),
+                        limit - mainChatList.size()), new Client.ResultHandler() {
                     @Override
                     public void onResult(TdApi.Object object) {
                         switch (object.getConstructor()) {
@@ -353,27 +286,211 @@ public class TelegramRunner {
                 return;
             }
 
-            java.util.Iterator<TelegramRunner.OrderedChat> iter = mainChatList.iterator();
-            System.out.println();
-            System.out.println("First " + limit + " chat(s) out of " + mainChatList.size() + " known chat(s):");
-            for (int i = 0; i < limit && i < mainChatList.size(); i++) {
-                long chatId = iter.next().chatId;
-                TdApi.Chat chat = chats.get(chatId);
-                synchronized (chat) {
-                    System.out.println(chatId + ": " + chat.title);
-                }
-            }
-            print("");
+//            getChats(limit);
+//            print("");
         }
+    }
+
+    private static List<String> getChats(int limit) {
+        List<String> namedChat = new ArrayList<>();
+        Iterator<OrderedChat> iter = mainChatList.iterator();
+//        System.out.println();
+//        System.out.println("First " + limit + " chat(s) out of " + mainChatList.size() + " known chat(s):");
+        for (int i = 0; i < limit && i < mainChatList.size(); i++) {
+            long chatId = iter.next().chatId;
+            TdApi.Chat chat = chats.get(chatId);
+            synchronized (chat) {
+//                System.out.println(chatId + ": " + chat.title);
+                namedChat.add(chat.title);
+            }
+        }
+        return namedChat;
     }
 
     private static void sendMessage(long chatId, String message) {
         // initialize reply markup just for testing
-        TdApi.InlineKeyboardButton[] row = {new TdApi.InlineKeyboardButton("https://telegram.org?1", new TdApi.InlineKeyboardButtonTypeUrl()), new TdApi.InlineKeyboardButton("https://telegram.org?2", new TdApi.InlineKeyboardButtonTypeUrl()), new TdApi.InlineKeyboardButton("https://telegram.org?3", new TdApi.InlineKeyboardButtonTypeUrl())};
-        TdApi.ReplyMarkup replyMarkup = new TdApi.ReplyMarkupInlineKeyboard(new TdApi.InlineKeyboardButton[][]{row, row, row});
+        TdApi.InlineKeyboardButton[] row =
+                {new TdApi.InlineKeyboardButton("https://telegram.org?1", new TdApi.InlineKeyboardButtonTypeUrl()), new TdApi.InlineKeyboardButton("https://telegram.org?2", new TdApi.InlineKeyboardButtonTypeUrl()), new TdApi.InlineKeyboardButton("https://telegram.org?3", new TdApi.InlineKeyboardButtonTypeUrl())};
+        TdApi.ReplyMarkup replyMarkup =
+                new TdApi.ReplyMarkupInlineKeyboard(new TdApi.InlineKeyboardButton[][]{row, row, row});
 
-        TdApi.InputMessageContent content = new TdApi.InputMessageText(new TdApi.FormattedText(message, null), false, true);
+        TdApi.InputMessageContent content =
+                new TdApi.InputMessageText(new TdApi.FormattedText(message, null), false, true);
         client.send(new TdApi.SendMessage(chatId, 0, 0, null, replyMarkup, content), defaultHandler);
+    }
+
+    private static void onFatalError(String errorMessage) {
+        final class ThrowError implements Runnable {
+            private final String errorMessage;
+            private final AtomicLong errorThrowTime;
+
+            private ThrowError(String errorMessage, AtomicLong errorThrowTime) {
+                this.errorMessage = errorMessage;
+                this.errorThrowTime = errorThrowTime;
+            }
+
+            @Override
+            public void run() {
+                if (isDatabaseBrokenError(errorMessage) || isDiskFullError(errorMessage) || isDiskError(errorMessage)) {
+                    processExternalError();
+                    return;
+                }
+
+                errorThrowTime.set(System.currentTimeMillis());
+                throw new ClientError("TDLib fatal error: " + errorMessage);
+            }
+
+            private void processExternalError() {
+                errorThrowTime.set(System.currentTimeMillis());
+                throw new ExternalClientError("Fatal error: " + errorMessage);
+            }
+
+            private boolean isDatabaseBrokenError(String message) {
+                return message.contains("Wrong key or database is corrupted") ||
+                        message.contains("SQL logic error or missing database") ||
+                        message.contains("database disk image is malformed") ||
+                        message.contains("file is encrypted or is not a database") ||
+                        message.contains("unsupported file format") ||
+                        message.contains("Database was corrupted and deleted during execution and can't be recreated");
+            }
+
+            private boolean isDiskFullError(String message) {
+                return message.contains("PosixError : No space left on device") ||
+                        message.contains("database or disk is full");
+            }
+
+            private boolean isDiskError(String message) {
+                return message.contains("I/O error") || message.contains("Structure needs cleaning");
+            }
+
+            final class ClientError extends Error {
+                private ClientError(String message) {
+                    super(message);
+                }
+            }
+
+            final class ExternalClientError extends Error {
+                public ExternalClientError(String message) {
+                    super(message);
+                }
+            }
+        }
+
+        final AtomicLong errorThrowTime = new AtomicLong(Long.MAX_VALUE);
+        new Thread(new ThrowError(errorMessage, errorThrowTime), "TDLib fatal error thread").start();
+
+        // wait at least 10 seconds after the error is thrown
+        while (errorThrowTime.get() >= System.currentTimeMillis() - 10000) {
+            try {
+                Thread.sleep(1000 /* milliseconds */);
+            } catch (InterruptedException ignore) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    @SneakyThrows
+    public ResponseChat httpSendMeToCommandLiner(RequestNewChat response) {
+        ResponseChat responseChat = new ResponseChat();
+
+        //check numbers list
+        List<Long> numbers = Arrays.stream(response.getNumbers()).boxed().collect(Collectors.toList());
+        if (numbers == null || numbers.size() == 0) {
+            String error = "numbers list empty";
+            log.warn("[httpSendMeToCommandLiner] " + error);
+            responseChat.setError(error);
+            return responseChat;
+        }
+        var botId = Long.parseLong(System.getenv("botId"));
+        numbers.add(botId);
+        //check list channel
+        int limit = Integer.MAX_VALUE;
+        getMainChatList(limit);
+        while (mainChatList.size() == 0) {
+            Thread.sleep(1000);
+        }
+        List<String> channel = getChats(limit);
+        if (channel.contains(response.getName())) {
+            String error = "new chat name is exist";
+            log.warn("[httpSendMeToCommandLiner] " + error);
+            responseChat.setError(error);
+            return responseChat;
+        }
+
+        //load users
+        userId = new HashSet<>();
+        log.warn("[httpSendMeToCommandLiner] start download user");
+        for (var item : numbers) {
+            client.send(new TdApi.GetUser(item), new GetUser());
+        }
+        while (userId.size() != numbers.size()) {
+            Thread.sleep(1000);
+        }
+        log.warn("[httpSendMeToCommandLiner] stop download user");
+
+        Thread.sleep(5000);
+
+        // create new group
+        long [] nums = new long[numbers.size()];
+        IntStream.range(0, numbers.size()).forEach(index -> {
+            nums[index] = numbers.get(index);
+        });
+
+        TdApi.CreateNewBasicGroupChat newGroup = new TdApi.CreateNewBasicGroupChat(nums, response.getName());
+        log.warn("[httpSendMeToCommandLiner] start create chat");
+        client.send(newGroup, new CreateChat());
+        while (responseTdApiCreate.getChat() == null && responseTdApiCreate.getError() == null) {
+            Thread.sleep(1000);
+        }
+        log.warn("[httpSendMeToCommandLiner] stop create chat");
+
+        if (responseTdApiCreate.getChat() != null) {
+
+            //update status bot
+            TdApi.SetChatMemberStatus admin =
+                    new TdApi.SetChatMemberStatus(responseTdApiCreate.getChat().id, new TdApi.MessageSenderUser(response.getNumbers()[0]), new TdApi.ChatMemberStatusAdministrator("botAdministrator", true, new TdApi.ChatAdministratorRights(true, true, true, true, true, true, true, true, true, true, true, true)));
+            log.warn("[httpSendMeToCommandLiner] start admin bot");
+            client.send(admin, defaultHandler);
+            log.warn("[httpSendMeToCommandLiner] stop admin bot");
+
+            // create link
+            TdApi.CreateChatInviteLink inviteLink =
+                    new TdApi.CreateChatInviteLink(responseTdApiCreate.getChat().id, UUID.randomUUID()
+                            .toString(), 0, 0, true);
+            log.warn("[httpSendMeToCommandLiner] start create link ");
+            client.send(inviteLink, new InviteUrl());
+            while (responseTdApiInviteUrl.getLink() == null && responseTdApiInviteUrl.getError() == null) {
+                Thread.sleep(1000);
+            }
+            log.warn("[httpSendMeToCommandLiner] stop create link ");
+            if (responseTdApiInviteUrl.getLink() != null) {
+
+                //send
+//             sendMessage(responseTdApiCreate.getChat().id, responseTdApiInviteUrl.getLink().inviteLink);
+                long mainGropuId = Long.parseLong(System.getenv("mainGropuId"));
+                sendMessage(mainGropuId, responseTdApiInviteUrl.getLink().inviteLink);
+
+                responseChat.setLink(responseTdApiInviteUrl.getLink().inviteLink);
+                responseChat.setGroupId(responseTdApiCreate.getChat().id);
+                return responseChat;
+
+            } else {
+                String error = "responseTdApiInviteUrl: " + responseTdApiInviteUrl.getError().message;
+                responseChat.setGroupId(responseTdApiCreate.getChat().id);
+                responseChat.setError(error);
+                return responseChat;
+            }
+        } else {
+            String error = "responseTdApiCreate: " + responseTdApiCreate.getError().message;
+            responseChat.setError(error);
+
+            return responseChat;
+        }
+    }
+
+    public void clearObj() {
+        responseTdApiCreate.clear();
+        responseTdApiInviteUrl.clear();
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -383,7 +500,8 @@ public class TelegramRunner {
 
         // disable TDLib log and redirect fatal errors and plain log messages to a file
         Client.execute(new TdApi.SetLogVerbosityLevel(0));
-        if (Client.execute(new TdApi.SetLogStream(new TdApi.LogStreamFile("tdlib.log", 1 << 27, false))) instanceof TdApi.Error) {
+        if (Client.execute(new TdApi.SetLogStream(new TdApi.LogStreamFile("tdlib.log",
+                1 << 27, false))) instanceof TdApi.Error) {
             throw new IOError(new IOException("Write access to the current directory is required"));
         }
 
@@ -404,9 +522,11 @@ public class TelegramRunner {
             } finally {
                 authorizationLock.unlock();
             }
-
+            if(haveAuthorization){
+                print("App Run...");
+            }
             while (haveAuthorization) {
-                getCommand();
+//                getCommand();
             }
         }
         while (!canQuit) {
@@ -449,7 +569,7 @@ public class TelegramRunner {
         }
     }
 
-    private static class CreateChat implements Client.ResultHandler{
+    private static class CreateChat implements Client.ResultHandler {
         @Override
         public void onResult(TdApi.Object object) {
             TdApi.Chat chat = null;
@@ -464,7 +584,7 @@ public class TelegramRunner {
         }
     }
 
-    private static class InviteUrl implements Client.ResultHandler{
+    private static class InviteUrl implements Client.ResultHandler {
         @Override
         public void onResult(TdApi.Object object) {
             TdApi.ChatInviteLink link = null;
@@ -479,7 +599,7 @@ public class TelegramRunner {
         }
     }
 
-    private static class GetUser implements Client.ResultHandler{
+    private static class GetUser implements Client.ResultHandler {
         @Override
         public void onResult(TdApi.Object object) {
             try {
@@ -573,7 +693,9 @@ public class TelegramRunner {
                                 break;
                             }
                         }
-                        TdApi.ChatPosition[] new_positions = new TdApi.ChatPosition[chat.positions.length + (updateChat.position.order == 0 ? 0 : 1) - (i < chat.positions.length ? 1 : 0)];
+                        TdApi.ChatPosition[] new_positions = new TdApi.ChatPosition[
+                                chat.positions.length + (updateChat.position.order == 0 ? 0 : 1) -
+                                        (i < chat.positions.length ? 1 : 0)];
                         int pos = 0;
                         if (updateChat.position.order != 0) {
                             new_positions[pos++] = updateChat.position;
@@ -656,7 +778,8 @@ public class TelegramRunner {
                     break;
                 }
                 case TdApi.UpdateChatDefaultDisableNotification.CONSTRUCTOR: {
-                    TdApi.UpdateChatDefaultDisableNotification update = (TdApi.UpdateChatDefaultDisableNotification) object;
+                    TdApi.UpdateChatDefaultDisableNotification update =
+                            (TdApi.UpdateChatDefaultDisableNotification) object;
                     TdApi.Chat chat = chats.get(update.chatId);
                     synchronized (chat) {
                         chat.defaultDisableNotification = update.defaultDisableNotification;
@@ -731,76 +854,6 @@ public class TelegramRunner {
                 return;
             }
             System.err.println(message);
-        }
-    }
-
-    private static void onFatalError(String errorMessage) {
-        final class ThrowError implements Runnable {
-            private final String errorMessage;
-            private final AtomicLong errorThrowTime;
-
-            private ThrowError(String errorMessage, AtomicLong errorThrowTime) {
-                this.errorMessage = errorMessage;
-                this.errorThrowTime = errorThrowTime;
-            }
-
-            @Override
-            public void run() {
-                if (isDatabaseBrokenError(errorMessage) || isDiskFullError(errorMessage) || isDiskError(errorMessage)) {
-                    processExternalError();
-                    return;
-                }
-
-                errorThrowTime.set(System.currentTimeMillis());
-                throw new ClientError("TDLib fatal error: " + errorMessage);
-            }
-
-            private void processExternalError() {
-                errorThrowTime.set(System.currentTimeMillis());
-                throw new ExternalClientError("Fatal error: " + errorMessage);
-            }
-
-            final class ClientError extends Error {
-                private ClientError(String message) {
-                    super(message);
-                }
-            }
-
-            final class ExternalClientError extends Error {
-                public ExternalClientError(String message) {
-                    super(message);
-                }
-            }
-
-            private boolean isDatabaseBrokenError(String message) {
-                return message.contains("Wrong key or database is corrupted") ||
-                        message.contains("SQL logic error or missing database") ||
-                        message.contains("database disk image is malformed") ||
-                        message.contains("file is encrypted or is not a database") ||
-                        message.contains("unsupported file format") ||
-                        message.contains("Database was corrupted and deleted during execution and can't be recreated");
-            }
-
-            private boolean isDiskFullError(String message) {
-                return message.contains("PosixError : No space left on device") ||
-                        message.contains("database or disk is full");
-            }
-
-            private boolean isDiskError(String message) {
-                return message.contains("I/O error") || message.contains("Structure needs cleaning");
-            }
-        }
-
-        final AtomicLong errorThrowTime = new AtomicLong(Long.MAX_VALUE);
-        new Thread(new ThrowError(errorMessage, errorThrowTime), "TDLib fatal error thread").start();
-
-        // wait at least 10 seconds after the error is thrown
-        while (errorThrowTime.get() >= System.currentTimeMillis() - 10000) {
-            try {
-                Thread.sleep(1000 /* milliseconds */);
-            } catch (InterruptedException ignore) {
-                Thread.currentThread().interrupt();
-            }
         }
     }
 }

@@ -1,12 +1,12 @@
 package ru.nis.pro.bottelegram.controller;
 
 import lombok.SneakyThrows;
-import lombok.extern.log4j.Log4j2;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.apache.logging.log4j.Logger;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -15,16 +15,17 @@ import ru.nis.pro.bottelegram.domain.RequestMonitoring;
 import ru.nis.pro.bottelegram.domain.ResponseMonitoring;
 import ru.nis.pro.bottelegram.integration.TelegramBot;
 
-import java.util.Objects;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
-@Log4j2
 @RestController
 @RequestMapping("/api/monitoring")
 public class Monitoring {
 
+    private static final Logger log = org.apache.logging.log4j.LogManager.getLogger(Monitoring.class);
     private final TelegramBot bot;
     private final RestTemplate restTemplate;
-    private final String URL = "http://localhost:8080/api/newchat";
+    private final String URL = "http://127.0.0.1:8080/api/newchat";
 
     public Monitoring(TelegramBot bot, RestTemplate restTemplate) {
         this.bot = bot;
@@ -60,13 +61,13 @@ public class Monitoring {
                 sb.append("Имя: ").append(requestMonitoring.getName()).append("\n");
                 sb.append("Ссылка: ").append(requestMonitoring.getLink()).append("\n");
                 sb.append("\nДетали:\n");
-                sb.append("Сигнал: ").append(requestMonitoring.getSignal()).append("\n");
+                sb.append("Описание: ").append(requestMonitoring.getDescription()).append("\n");
                 sb.append("Статус: ").append(requestMonitoring.getStatus()).append("\n");
                 sb.append("Критичность: ").append(requestMonitoring.getCritical()).append("\n");
                 sb.append("Время создания: ").append(requestMonitoring.getTimeCreate()).append("\n");
                 sb.append("Время завершения: ").append(requestMonitoring.getTimeEnd()).append("\n");
                 sb.append("Длительность: ").append(requestMonitoring.getDuration()).append("\n");
-                sb.append("Ссылка: ").append(requestMonitoring.getProblemLink()).append("\n");
+//                sb.append("Ссылка: ").append(requestMonitoring.getProblemLink()).append("\n");
 
                 try {
                     Thread.sleep(5000);
@@ -89,9 +90,16 @@ public class Monitoring {
     }
 
 
-    @GetMapping("/test")
-    public ResponseEntity<String> getTest(){
-        ResponseEntity<String> exchange = restTemplate.exchange("https://httpbin.org/ip", HttpMethod.GET, null, String.class);
-        return new ResponseEntity<>(exchange.getBody(), HttpStatus.OK);
+    @PostMapping("/test")
+    public ResponseEntity<String> getTest(@RequestBody String body){
+        HttpHeaders headers = new HttpHeaders();
+
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        body = new String(bytes, StandardCharsets.UTF_8);
+
+        System.out.println("body = " + body);
+        log.info(body);
+        headers.setContentType(MediaType.parseMediaType("application/json; charset=UTF-8"));
+        return new ResponseEntity<>(body, headers, HttpStatus.OK);
     }
 }
