@@ -34,20 +34,14 @@ public class TelegramRunner {
     private static final Lock authorizationLock = new ReentrantLock();
     private static final Condition gotAuthorization = authorizationLock.newCondition();
     private static final ConcurrentMap<Long, TdApi.User> users = new ConcurrentHashMap<Long, TdApi.User>();
-    private static final ConcurrentMap<Long, TdApi.BasicGroup> basicGroups =
-            new ConcurrentHashMap<Long, TdApi.BasicGroup>();
-    private static final ConcurrentMap<Long, TdApi.Supergroup> supergroups =
-            new ConcurrentHashMap<Long, TdApi.Supergroup>();
-    private static final ConcurrentMap<Integer, TdApi.SecretChat> secretChats =
-            new ConcurrentHashMap<Integer, TdApi.SecretChat>();
+    private static final ConcurrentMap<Long, TdApi.BasicGroup> basicGroups = new ConcurrentHashMap<Long, TdApi.BasicGroup>();
+    private static final ConcurrentMap<Long, TdApi.Supergroup> supergroups = new ConcurrentHashMap<Long, TdApi.Supergroup>();
+    private static final ConcurrentMap<Integer, TdApi.SecretChat> secretChats = new ConcurrentHashMap<Integer, TdApi.SecretChat>();
     private static final ConcurrentMap<Long, TdApi.Chat> chats = new ConcurrentHashMap<Long, TdApi.Chat>();
     private static final NavigableSet<OrderedChat> mainChatList = new TreeSet<OrderedChat>();
-    private static final ConcurrentMap<Long, TdApi.UserFullInfo> usersFullInfo =
-            new ConcurrentHashMap<Long, TdApi.UserFullInfo>();
-    private static final ConcurrentMap<Long, TdApi.BasicGroupFullInfo> basicGroupsFullInfo =
-            new ConcurrentHashMap<Long, TdApi.BasicGroupFullInfo>();
-    private static final ConcurrentMap<Long, TdApi.SupergroupFullInfo> supergroupsFullInfo =
-            new ConcurrentHashMap<Long, TdApi.SupergroupFullInfo>();
+    private static final ConcurrentMap<Long, TdApi.UserFullInfo> usersFullInfo = new ConcurrentHashMap<Long, TdApi.UserFullInfo>();
+    private static final ConcurrentMap<Long, TdApi.BasicGroupFullInfo> basicGroupsFullInfo = new ConcurrentHashMap<Long, TdApi.BasicGroupFullInfo>();
+    private static final ConcurrentMap<Long, TdApi.SupergroupFullInfo> supergroupsFullInfo = new ConcurrentHashMap<Long, TdApi.SupergroupFullInfo>();
     private static final String newLine = System.getProperty("line.separator");
     private static final String commandsLine =
             "Enter command (gcs - GetChats, gc <chatId> - GetChat, me - GetMe, sm <chatId> <message> - SendMessage, lo - LogOut, q - Quit): ";
@@ -291,8 +285,8 @@ public class TelegramRunner {
         }
     }
 
-    private static List<String> getChats(int limit) {
-        List<String> namedChat = new ArrayList<>();
+    private static HashSet<String> getChats(int limit) {
+        HashSet<String> namedChat = new HashSet<String>();
         Iterator<OrderedChat> iter = mainChatList.iterator();
 //        System.out.println();
 //        System.out.println("First " + limit + " chat(s) out of " + mainChatList.size() + " known chat(s):");
@@ -394,7 +388,8 @@ public class TelegramRunner {
         ResponseChat responseChat = new ResponseChat();
 
         //check numbers list
-        List<Long> numbers = Arrays.stream(response.getNumbers()).boxed().collect(Collectors.toList());
+        List<Long> numbers = Arrays.stream(response.getNumbers()).boxed().distinct().collect(Collectors.toList());
+
         if (numbers == null || numbers.size() == 0) {
             String error = "numbers list empty";
             log.warn("[httpSendMeToCommandLiner] " + error);
@@ -409,7 +404,7 @@ public class TelegramRunner {
         while (mainChatList.size() == 0) {
             Thread.sleep(1000);
         }
-        List<String> channel = getChats(limit);
+        HashSet<String> channel = getChats(limit);
         if (channel.contains(response.getName())) {
             String error = "new chat name is exist";
             log.warn("[httpSendMeToCommandLiner] " + error);
@@ -456,7 +451,7 @@ public class TelegramRunner {
             // create link
             TdApi.CreateChatInviteLink inviteLink =
                     new TdApi.CreateChatInviteLink(responseTdApiCreate.getChat().id, UUID.randomUUID()
-                            .toString(), 0, 0, true);
+                            .toString(), 0, 0, false);
             log.warn("[httpSendMeToCommandLiner] start create link ");
             client.send(inviteLink, new InviteUrl());
             while (responseTdApiInviteUrl.getLink() == null && responseTdApiInviteUrl.getError() == null) {
@@ -522,7 +517,7 @@ public class TelegramRunner {
             } finally {
                 authorizationLock.unlock();
             }
-            if(haveAuthorization){
+            if (haveAuthorization) {
                 print("App Run...");
             }
             while (haveAuthorization) {
