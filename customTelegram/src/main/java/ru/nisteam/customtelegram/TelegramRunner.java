@@ -431,7 +431,7 @@ public class TelegramRunner {
             nums[index] = numbers.get(index);
         });
 
-        TdApi.CreateNewBasicGroupChat newGroup = new TdApi.CreateNewBasicGroupChat(nums, response.getName());
+        TdApi.CreateNewBasicGroupChat newGroup = new TdApi.CreateNewBasicGroupChat(nums, " \uD83D\uDD34 " + response.getName());
         log.warn("[httpSendMeToCommandLiner] start create chat");
         client.send(newGroup, new CreateChat());
         while (responseTdApiCreate.getChat() == null && responseTdApiCreate.getError() == null) {

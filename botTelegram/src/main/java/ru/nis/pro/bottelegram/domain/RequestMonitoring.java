@@ -6,15 +6,11 @@ import org.springframework.stereotype.Component;
 @Component
 @Data
 public class RequestMonitoring {
+    String keMain;
+    String keInform;
+    String keComponent;
     String name;
-    String link;
-    long[] numbers;
     String description;
-    String status;
-    String critical;
-    String timeCreate;
-    String timeEnd;
-    String duration;
-//    String problemLink;
+    long[] numbers;
 
 }

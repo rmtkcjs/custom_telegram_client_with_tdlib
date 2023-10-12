@@ -58,16 +58,12 @@ public class Monitoring {
 
                 StringBuilder sb = new StringBuilder();
                 sb.append("Затронутые КЕ:\n");
-                sb.append("Имя: ").append(requestMonitoring.getName()).append("\n");
-                sb.append("Ссылка: ").append(requestMonitoring.getLink()).append("\n");
+                sb.append("Наименования верхнеуровневой КЕ, КЕ ИТ-усулиг: ").append(requestMonitoring.getKeMain()).append("\n");
+                sb.append("Наименования КЕ информационной системы: ").append(requestMonitoring.getKeInform()).append("\n");
+                sb.append("Наименования КЕ компонента информационной системы: ").append(requestMonitoring.getKeComponent()).append("\n");
                 sb.append("\nДетали:\n");
-                sb.append("Описание: ").append(requestMonitoring.getDescription()).append("\n");
-                sb.append("Статус: ").append(requestMonitoring.getStatus()).append("\n");
-                sb.append("Критичность: ").append(requestMonitoring.getCritical()).append("\n");
-                sb.append("Время создания: ").append(requestMonitoring.getTimeCreate()).append("\n");
-                sb.append("Время завершения: ").append(requestMonitoring.getTimeEnd()).append("\n");
-                sb.append("Длительность: ").append(requestMonitoring.getDuration()).append("\n");
-//                sb.append("Ссылка: ").append(requestMonitoring.getProblemLink()).append("\n");
+                sb.append("Наименование события (алерта): ").append(requestMonitoring.getName()).append("\n");
+                sb.append("Фактическое значение события (алерта): ").append(requestMonitoring.getDescription()).append("\n");
 
                 try {
                     Thread.sleep(5000);
