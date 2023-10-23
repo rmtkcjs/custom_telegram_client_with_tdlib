@@ -15,7 +15,6 @@ import ru.nis.pro.bottelegram.domain.RequestMonitoring;
 import ru.nis.pro.bottelegram.domain.ResponseMonitoring;
 import ru.nis.pro.bottelegram.integration.TelegramBot;
 
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 @RestController
@@ -35,60 +34,83 @@ public class Monitoring {
     @SneakyThrows
     @PostMapping("/bot")
     public ResponseEntity<ResponseMonitoring> createNewChat(@RequestBody RequestMonitoring requestMonitoring) {
-        log.warn("[createNewChat] start method " );
+        log.warn("[createNewChat] start method ");
+        log.info("Data in => " + requestMonitoring);
         HttpEntity<RequestMonitoring> request = new HttpEntity<>(requestMonitoring);
         ResponseEntity<ResponseMonitoring> exchange = null;
-        try {
-            log.warn("[createNewChat] start exchange " );
-            exchange = restTemplate.exchange(URL, HttpMethod.POST, request, ResponseMonitoring.class);
-            log.warn("[createNewChat] stop exchange " );
-        } catch (RestClientException e) {
-            //log.error("[MONITORING, BAD REQUEST] exchange.getStatusCode(): " + exchange.getStatusCode());
 
+        try {
+            log.warn("[createNewChat] start exchange ");
+            exchange = restTemplate.exchange(URL, HttpMethod.POST, request, ResponseMonitoring.class);
+            log.warn("[createNewChat] stop exchange ");
+        } catch (RestClientException e) {
             log.error("[MONITORING,BAD REQUEST] e: " + e);
-            ResponseMonitoring responseMonitoring = new ResponseMonitoring();
+            ResponseMonitoring responseMonitoring = new ResponseMonitoring( );
             responseMonitoring.setError("MONITORING,BAD REQUEST FROM NEW CHAT CREATED");
             return new ResponseEntity<>(responseMonitoring, HttpStatus.BAD_REQUEST);
         }
-        log.warn("[createNewChat] get response, exchange.getStatusCode() == HttpStatus.OK "  + (exchange.getStatusCode() == HttpStatus.OK));
-        if (exchange.getStatusCode() == HttpStatus.OK) {
-            log.warn("[createNewChat] get response, exchange.getBody().getGroupId() < 0 "  + (exchange.getBody().getGroupId() < 0));
-            if (exchange.getBody().getGroupId() != 0){
-                log.info("Telegram ID {}", String.valueOf(exchange.getBody().getGroupId()));
 
-                StringBuilder sb = new StringBuilder();
+        log.warn("[createNewChat] get response, exchange.getStatusCode() == HttpStatus.OK " +
+                (exchange.getStatusCode( ) == HttpStatus.OK));
+        if (exchange.getStatusCode( ) == HttpStatus.OK) {
+
+            log.warn("[createNewChat] get response, exchange.getBody().getGroupId() < 0 " +
+                    (exchange.getBody( ).getGroupId( ) < 0));
+            if (exchange.getBody( ).getGroupId( ) != 0) {
+                log.info("Telegram ID {}", String.valueOf(exchange.getBody( ).getGroupId( )));
+
+                StringBuilder sb = new StringBuilder( );
                 sb.append("Затронутые КЕ:\n");
-                sb.append("Наименования верхнеуровневой КЕ, КЕ ИТ-усулиг: ").append(requestMonitoring.getKeMain()).append("\n");
-                sb.append("Наименования КЕ информационной системы: ").append(requestMonitoring.getKeInform()).append("\n");
-                sb.append("Наименования КЕ компонента информационной системы: ").append(requestMonitoring.getKeComponent()).append("\n");
-                sb.append("\nДетали:\n");
-                sb.append("Наименование события (алерта): ").append(requestMonitoring.getName()).append("\n");
-                sb.append("Фактическое значение события (алерта): ").append(requestMonitoring.getDescription()).append("\n");
+                sb.append("Наименования верхнеуровневой КЕ, КЕ ИТ-услуги: ")
+                        .append("\n")
+                        .append(requestMonitoring.getKeMain( ))
+                        .append("\n")
+                        .append("\n");
+                sb.append("Наименования КЕ информационной системы: ")
+                        .append("\n")
+                        .append(requestMonitoring.getKeInform( ))
+                        .append("\n")
+                        .append("\n");
+                sb.append("Наименования КЕ компонента информационной системы: ")
+                        .append("\n")
+                        .append(requestMonitoring.getKeComponent( ))
+                        .append("\n")
+                        .append("\n");
+                sb.append("Детали:\n");
+                sb.append("Наименование события (алерта): ")
+                        .append("\n")
+                        .append(requestMonitoring.getName( ))
+                        .append("\n")
+                        .append("\n");
+                sb.append("Фактическое значение события (алерта): ")
+                        .append("\n")
+                        .append(requestMonitoring.getDescription( ))
+                        .append("\n");
 
                 try {
-                    Thread.sleep(5000);
-                    bot.execute(SendMessage.builder()
-                            .chatId(String.valueOf(exchange.getBody().getGroupId()))
-                            .text(sb.toString())
+                    bot.execute(SendMessage.builder( )
+                            .chatId(String.valueOf(exchange.getBody( ).getGroupId( )))
+                            .text(sb.toString( ))
                             .protectContent(true)
-                            .build());
-                    return new ResponseEntity<>(exchange.getBody(), HttpStatus.OK);
+                            .build( ));
+                    log.info("[MONITORING, BOT SEND] send success to group: " + exchange.getBody( ).getGroupId( ));
+                    return new ResponseEntity<>(exchange.getBody( ), HttpStatus.OK);
                 } catch (TelegramApiException e) {
                     log.error("[MONITORING, BOT SEND] e: " + e);
                 }
-            }else{
-                log.error("[MONITORING, BOT NOT SEND, getGroupId() == 0] exchange.getBody(): " + exchange.getBody());
-                return new ResponseEntity<>(exchange.getBody(), HttpStatus.NOT_ACCEPTABLE);
+            } else {
+                log.error("[MONITORING, BOT NOT SEND, getGroupId() == 0] exchange.getBody(): " + exchange.getBody( ));
+                return new ResponseEntity<>(exchange.getBody( ), HttpStatus.NOT_ACCEPTABLE);
             }
         }
-        log.error("[MONITORING, BAD HttpStatus] exchange.getStatusCode(): " + exchange.getStatusCode());
-        return new ResponseEntity<>(exchange.getBody(), HttpStatus.HTTP_VERSION_NOT_SUPPORTED);
+        log.error("[MONITORING, BAD HttpStatus] exchange.getStatusCode(): " + exchange.getStatusCode( ));
+        return new ResponseEntity<>(exchange.getBody( ), HttpStatus.HTTP_VERSION_NOT_SUPPORTED);
     }
 
 
     @PostMapping("/test")
-    public ResponseEntity<String> getTest(@RequestBody String body){
-        HttpHeaders headers = new HttpHeaders();
+    public ResponseEntity<String> getTest(@RequestBody String body) {
+        HttpHeaders headers = new HttpHeaders( );
 
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         body = new String(bytes, StandardCharsets.UTF_8);

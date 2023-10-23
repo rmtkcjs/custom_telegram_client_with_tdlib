@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 @Data
 public class RequestNewChat {
     String name;
+    String description;
     long[] numbers;
 }
 

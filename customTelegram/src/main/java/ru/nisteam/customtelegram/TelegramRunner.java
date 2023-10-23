@@ -309,8 +309,16 @@ public class TelegramRunner {
                 new TdApi.ReplyMarkupInlineKeyboard(new TdApi.InlineKeyboardButton[][]{row, row, row});
 
         TdApi.InputMessageContent content =
-                new TdApi.InputMessageText(new TdApi.FormattedText(message, null), false, true);
+                new TdApi.InputMessageText(new TdApi.FormattedText(message, null), true, true);
         client.send(new TdApi.SendMessage(chatId, 0, 0, null, replyMarkup, content), defaultHandler);
+    }
+
+
+    private static void sendMessageForGroup(long chatId, String message) {
+
+        TdApi.InputMessageContent content =
+                new TdApi.InputMessageText(new TdApi.FormattedText(message, null), false, true);
+        client.send(new TdApi.SendMessage(chatId, 0, 0, null, null, content), defaultHandler);
     }
 
     private static void onFatalError(String errorMessage) {
@@ -398,15 +406,22 @@ public class TelegramRunner {
         }
         var botId = Long.parseLong(System.getenv("botId"));
         numbers.add(botId);
+
         //check list channel
         int limit = Integer.MAX_VALUE;
+
         getMainChatList(limit);
-        while (mainChatList.size() == 0) {
-            Thread.sleep(1000);
+        while (!haveFullMainChatList) {
+            Thread.sleep(2000);
         }
+
         HashSet<String> channel = getChats(limit);
-        if (channel.contains(response.getName())) {
-            String error = "new chat name is exist";
+
+        String fullGroupName= "\uD83D\uDD34 " + response.getName();
+        boolean findGroup = new ArrayList<>(channel).stream( ).filter(e -> e.contains(fullGroupName)).findFirst( ).isEmpty( );
+
+        if (!findGroup) {
+            String error = "new chat name is exist, name is: " + fullGroupName;
             log.warn("[httpSendMeToCommandLiner] " + error);
             responseChat.setError(error);
             return responseChat;
@@ -423,16 +438,14 @@ public class TelegramRunner {
         }
         log.warn("[httpSendMeToCommandLiner] stop download user");
 
-        Thread.sleep(5000);
-
         // create new group
         long [] nums = new long[numbers.size()];
         IntStream.range(0, numbers.size()).forEach(index -> {
             nums[index] = numbers.get(index);
         });
 
-        TdApi.CreateNewBasicGroupChat newGroup = new TdApi.CreateNewBasicGroupChat(nums, " \uD83D\uDD34 " + response.getName());
         log.warn("[httpSendMeToCommandLiner] start create chat");
+        TdApi.CreateNewBasicGroupChat newGroup = new TdApi.CreateNewBasicGroupChat(nums, " \uD83D\uDD34 " + response.getName());
         client.send(newGroup, new CreateChat());
         while (responseTdApiCreate.getChat() == null && responseTdApiCreate.getError() == null) {
             Thread.sleep(1000);
@@ -442,17 +455,17 @@ public class TelegramRunner {
         if (responseTdApiCreate.getChat() != null) {
 
             //update status bot
-            TdApi.SetChatMemberStatus admin =
-                    new TdApi.SetChatMemberStatus(responseTdApiCreate.getChat().id, new TdApi.MessageSenderUser(response.getNumbers()[0]), new TdApi.ChatMemberStatusAdministrator("botAdministrator", true, new TdApi.ChatAdministratorRights(true, true, true, true, true, true, true, true, true, true, true, true)));
             log.warn("[httpSendMeToCommandLiner] start admin bot");
+            TdApi.SetChatMemberStatus admin =
+                    new TdApi.SetChatMemberStatus(responseTdApiCreate.getChat().id, new TdApi.MessageSenderUser(botId), new TdApi.ChatMemberStatusAdministrator("botAdministrator", true, new TdApi.ChatAdministratorRights(true, true, true, true, true, true, true, true, true, true, true, true)));
             client.send(admin, defaultHandler);
             log.warn("[httpSendMeToCommandLiner] stop admin bot");
 
             // create link
+            log.warn("[httpSendMeToCommandLiner] start create link ");
             TdApi.CreateChatInviteLink inviteLink =
                     new TdApi.CreateChatInviteLink(responseTdApiCreate.getChat().id, UUID.randomUUID()
                             .toString(), 0, 0, false);
-            log.warn("[httpSendMeToCommandLiner] start create link ");
             client.send(inviteLink, new InviteUrl());
             while (responseTdApiInviteUrl.getLink() == null && responseTdApiInviteUrl.getError() == null) {
                 Thread.sleep(1000);
@@ -463,7 +476,19 @@ public class TelegramRunner {
                 //send
 //             sendMessage(responseTdApiCreate.getChat().id, responseTdApiInviteUrl.getLink().inviteLink);
                 long mainGropuId = Long.parseLong(System.getenv("mainGropuId"));
-                sendMessage(mainGropuId, responseTdApiInviteUrl.getLink().inviteLink);
+
+                StringBuilder msg = new StringBuilder(  );
+                msg.append("Коллеги, системой мониторинга выявлена проблема:");
+                msg.append("\n");
+                msg.append("\"").append(response.getDescription( )).append("\"");
+                msg.append("\n");
+                msg.append("\n");
+                msg.append("Создан рабочий чат: ");
+                msg.append("\n");
+                msg.append(fullGroupName);
+                msg.append("\n");
+                msg.append(responseTdApiInviteUrl.getLink().inviteLink);
+                sendMessage(mainGropuId, msg.toString());
 
                 responseChat.setLink(responseTdApiInviteUrl.getLink().inviteLink);
                 responseChat.setGroupId(responseTdApiCreate.getChat().id);
