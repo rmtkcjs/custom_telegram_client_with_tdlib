@@ -60,32 +60,8 @@ public class Monitoring {
                 log.info("Telegram ID {}", String.valueOf(exchange.getBody( ).getGroupId( )));
 
                 StringBuilder sb = new StringBuilder( );
-                sb.append("Затронутые КЕ:\n");
-                sb.append("Наименования верхнеуровневой КЕ, КЕ ИТ-услуги: ")
-                        .append("\n")
-                        .append(requestMonitoring.getKeMain( ))
-                        .append("\n")
-                        .append("\n");
-                sb.append("Наименования КЕ информационной системы: ")
-                        .append("\n")
-                        .append(requestMonitoring.getKeInform( ))
-                        .append("\n")
-                        .append("\n");
-                sb.append("Наименования КЕ компонента информационной системы: ")
-                        .append("\n")
-                        .append(requestMonitoring.getKeComponent( ))
-                        .append("\n")
-                        .append("\n");
-                sb.append("Детали:\n");
-                sb.append("Наименование события (алерта): ")
-                        .append("\n")
-                        .append(requestMonitoring.getName( ))
-                        .append("\n")
-                        .append("\n");
-                sb.append("Фактическое значение события (алерта): ")
-                        .append("\n")
-                        .append(requestMonitoring.getDescription( ))
-                        .append("\n");
+                sb.append(requestMonitoring.getMsgPrivate( ) ==
+                        null ? "Сообщение отсутствует" : requestMonitoring.getMsgPrivate( ));
 
                 try {
                     bot.execute(SendMessage.builder( )

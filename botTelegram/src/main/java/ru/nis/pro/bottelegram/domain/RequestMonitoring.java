@@ -6,11 +6,8 @@ import org.springframework.stereotype.Component;
 @Component
 @Data
 public class RequestMonitoring {
-    String keMain;
-    String keInform;
-    String keComponent;
-    String name;
-    String description;
+    String msgCommon;
+    String msgPrivate;
+    String nameGroup;
     long[] numbers;
-
 }
