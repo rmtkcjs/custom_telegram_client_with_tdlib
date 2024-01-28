@@ -416,7 +416,8 @@ public class TelegramRunner {
         }
 
         HashSet<String> channel = getChats(limit);
-        String fullGroupName= response.getNameGroup();
+
+        String fullGroupName= "\uD83D\uDD34 " + response.getName();
         boolean findGroup = new ArrayList<>(channel).stream( ).filter(e -> e.contains(fullGroupName)).findFirst( ).isEmpty( );
 
         if (!findGroup) {
@@ -444,7 +445,7 @@ public class TelegramRunner {
         });
 
         log.warn("[httpSendMeToCommandLiner] start create chat");
-        TdApi.CreateNewBasicGroupChat newGroup = new TdApi.CreateNewBasicGroupChat(nums, fullGroupName);
+        TdApi.CreateNewBasicGroupChat newGroup = new TdApi.CreateNewBasicGroupChat(nums, " \uD83D\uDD34 " + response.getName());
         client.send(newGroup, new CreateChat());
         while (responseTdApiCreate.getChat() == null && responseTdApiCreate.getError() == null) {
             Thread.sleep(1000);
@@ -477,7 +478,14 @@ public class TelegramRunner {
                 long mainGropuId = Long.parseLong(System.getenv("mainGropuId"));
 
                 StringBuilder msg = new StringBuilder(  );
-                msg.append(response.getMsgCommon());
+                msg.append("Коллеги, системой мониторинга выявлена проблема:");
+                msg.append("\n");
+                msg.append("\"").append(response.getDescription( )).append("\"");
+                msg.append("\n");
+                msg.append("\n");
+                msg.append("Создан рабочий чат: ");
+                msg.append("\n");
+                msg.append(fullGroupName);
                 msg.append("\n");
                 msg.append(responseTdApiInviteUrl.getLink().inviteLink);
                 sendMessage(mainGropuId, msg.toString());
